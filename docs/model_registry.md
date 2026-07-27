@@ -43,8 +43,6 @@ Use this page to search and download trained RouteE Powertrain models.
     align-items: flex-start;
     flex-wrap: wrap;
     gap: 10px;
-    padding-bottom: 12px;
-    margin-bottom: 16px;
   }
   .result-title {
     margin: 0;
@@ -179,6 +177,7 @@ Use this page to search and download trained RouteE Powertrain models.
     <select id="make-filter"><option value="">All Makes</option></select>
     <select id="model-filter"><option value="">All Models</option></select>
     <select id="powertrain-filter"><option value="">All Powertrains</option></select>
+    <select id="architecture-filter"><option value="">All Architectures</option></select>
     <input type="number" id="year-min" placeholder="Year Min">
     <input type="number" id="year-max" placeholder="Year Max">
   </div>
@@ -205,6 +204,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const yearMinInput = document.getElementById('year-min');
   const yearMaxInput = document.getElementById('year-max');
   const resultsContainer = document.getElementById('results-container');
+  const architectureFilter = document.getElementById('architecture-filter');
 
   // --- Utility Functions ---
 
@@ -305,6 +305,7 @@ document.addEventListener('DOMContentLoaded', () => {
     getOptions('make').forEach(v => makeFilter.add(new Option(v,v)));
     getOptions('vehicleModel').forEach(v => modelFilter.add(new Option(v,v)));
     getOptions('powertrain').forEach(v => powertrainFilter.add(new Option(v,v)));
+    getOptions('architectureTag').forEach(arch => architectureFilter.add(new Option(formatArchitectureTag(arch), arch)));
   };
 
   // --- Rendering Functions ---
@@ -334,8 +335,9 @@ const renderArchitectureGroup = (arch, models) => `
       </div>
     </div>`;
 
-  const renderVersionContent = (version) => {
+  const renderVersionContent = (version, filterArch = '') => {
     const byArch = version.featureSets.reduce((acc, model) => {
+      if (filterArch && model.architectureTag != filterArch) return acc;
       (acc[model.architectureTag] = acc[model.architectureTag] || []).push(model);
       return acc;
     }, {});
@@ -364,6 +366,9 @@ const renderArchitectureGroup = (arch, models) => `
     const card = document.createElement('div');
     card.className = 'result-card';
     card.dataset.groupIndex = groupIndex;
+    
+    const activeArch = architectureFilter.value;
+
     card.innerHTML = `
       <div class="result-header">
         <div>
@@ -371,7 +376,7 @@ const renderArchitectureGroup = (arch, models) => `
           <div style="font-weight: bold; text-transform: uppercase;">${String(group.powertrain).replace(/_/g, ' ')}</div>
         </div>
       </div>
-      <div class="feature-sets-container">${renderVersionContent(latestVersion)}</div>
+      <div class="feature-sets-container">${renderVersionContent(latestVersion, activeArch)}</div>
       <div class="actions-row">${renderVersionSelector(group, groupIndex)}</div>
     `;
     resultsContainer.appendChild(card);
@@ -394,6 +399,7 @@ const renderArchitectureGroup = (arch, models) => `
     const make = makeFilter.value;
     const model = modelFilter.value;
     const pt = powertrainFilter.value;
+    const arch = architectureFilter.value;
     const yearMin = parseInt(yearMinInput.value, 10) || null;
     const yearMax = parseInt(yearMaxInput.value, 10) || null;
 
@@ -410,6 +416,10 @@ const renderArchitectureGroup = (arch, models) => `
         const searchText = (group.key + group.versions.flatMap(v => v.featureSets.flatMap(m => m.feature_names)).join(' ')).toLowerCase();
         if (!searchText.includes(query)) return false;
       }
+      if (arch) {
+        const hasMatchingArch = group.versions.some(v => v.featureSets.some(m => m.architectureTag === arch));
+        if (!hasMatchingArch) return false;
+      }
       return true;
     });
     renderResults(filtered);
@@ -418,15 +428,17 @@ const renderArchitectureGroup = (arch, models) => `
   const handleEventDelegation = (e) => {
       // Version selection change
       if (e.target.matches('.version-select')) {
-          const groupIndex = e.target.dataset.groupIndex;
-          const versionIndex = e.target.value;
-          const group = currentRenderedGroups[groupIndex];
-          const card = e.target.closest('.result-card');
-          if (group && card) {
-              const version = group.versions[versionIndex];
-              card.querySelector('.year-display').textContent = getVersionYearDisplay(version.yearRange);
-              card.querySelector('.feature-sets-container').innerHTML = renderVersionContent(version);
-          }
+        const groupIndex = e.target.dataset.groupIndex;
+        const versionIndex = e.target.value;
+        const group = currentRenderedGroups[groupIndex];
+        const card = e.target.closest('.result-card');
+        if (group && card) {
+          const version = group.versions[versionIndex];
+          const activeArch = architectureFilter.value;
+          
+          card.querySelector('.year-display').textContent = getVersionYearDisplay(version.yearRange);
+          card.querySelector('.feature-sets-container').innerHTML = renderVersionContent(version, activeArch);
+        }
       }
       // Copy button click
       if (e.target.matches('.copy-btn')) {
@@ -457,7 +469,7 @@ const renderArchitectureGroup = (arch, models) => `
   };
 
   // Attach event listeners
-  [searchInput, makeFilter, modelFilter, powertrainFilter, yearMinInput, yearMaxInput].forEach(el => 
+  [searchInput, makeFilter, modelFilter, powertrainFilter, architectureFilter, yearMinInput, yearMaxInput].forEach(el => 
     el.addEventListener('input', handleSearch)
   );
   resultsContainer.addEventListener('change', handleEventDelegation);
