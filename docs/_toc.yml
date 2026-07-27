@@ -13,6 +13,7 @@ parts:
     chapters:
     - file: model_prediction 
     - file: model_training 
+    - file: model_registry
     - file: api_docs
   
   - caption: Examples
