@@ -43,7 +43,6 @@ Use this page to search and download trained RouteE Powertrain models.
     align-items: flex-start;
     flex-wrap: wrap;
     gap: 10px;
-    border-bottom: 1px solid var(--pst-color-border, #eee);
     padding-bottom: 12px;
     margin-bottom: 16px;
   }
@@ -119,23 +118,6 @@ Use this page to search and download trained RouteE Powertrain models.
     margin-top: 12px;
     background: var(--pst-color-surface, #fafafa);
   }
-  .architecture-group {
-    border: 1px solid var(--pst-color-border, #d9d9d9);
-    border-radius: 10px;
-    margin-top: 14px;
-    overflow: hidden;
-    background: var(--pst-color-background, #fff);
-  }
-  .architecture-group-header {
-    padding: 10px 14px;
-    background: rgba(15, 108, 189, 0.08);
-    color: #0f6cbd;
-    font-size: 0.85rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    border-bottom: 1px solid var(--pst-color-border, #d9d9d9);
-  }
   .architecture-group-body {
     padding: 14px;
     display: grid;
@@ -209,8 +191,8 @@ Use this page to search and download trained RouteE Powertrain models.
 <script>
 document.addEventListener('DOMContentLoaded', () => {
 
-  // const INDEX_URL = '../../../dummy_index.json';
-  const INDEX_URL = 'https://raw.githubusercontent.com/Byron-Selvage/Routee-Powertrain-Model-Dashboard/refs/heads/main/index.json';
+  const INDEX_URL = '../../../dummy_index.json';
+  // const INDEX_URL = 'https://raw.githubusercontent.com/Byron-Selvage/Routee-Powertrain-Model-Dashboard/refs/heads/main/index.json';
   let allModels = [];
   let vehicleGroups = [];
   let currentRenderedGroups = [];
@@ -341,10 +323,15 @@ document.addEventListener('DOMContentLoaded', () => {
       <a href="${model.downloadUrl}" class="btn-download" target="_blank">Download Model</a>
     </div>`;
 
-  const renderArchitectureGroup = (arch, models) => `
-    <div class="architecture-group">
-      <div class="architecture-group-header">Architecture: ${formatArchitectureTag(arch)}</div>
-      <div class="architecture-group-body">${models.map(renderFeatureSetCard).join('')}</div>
+const renderArchitectureGroup = (arch, models) => `
+    <div style="margin-top: 24px;">
+      <h2 style="margin: 0 0 8px 0; font-size: 1.4rem; color: var(--pst-color-text-base, #333); font-weight: 600;">
+        ${formatArchitectureTag(arch)}
+      </h2>
+      <hr style="border: 0; border-top: 2px solid var(--pst-color-border, #eee); margin-bottom: 16px;">
+      <div style="display: grid; gap: 12px;">
+        ${models.map(renderFeatureSetCard).join('')}
+      </div>
     </div>`;
 
   const renderVersionContent = (version) => {
