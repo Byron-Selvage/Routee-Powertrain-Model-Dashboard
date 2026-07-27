@@ -106,11 +106,51 @@ Use this page to search and download trained RouteE Powertrain models.
   }
   .actions-row {
     display: flex;
-    justify-content: space-between;
+    justify-content: flex-end;
     align-items: center;
     flex-wrap: wrap;
     gap: 12px;
     margin-top: 16px;
+  }
+  .feature-set-card {
+    border: 1px solid var(--pst-color-border, #e5e5e5);
+    border-radius: 8px;
+    padding: 14px;
+    margin-top: 12px;
+    background: var(--pst-color-surface, #fafafa);
+  }
+  .architecture-group {
+    border: 1px solid var(--pst-color-border, #d9d9d9);
+    border-radius: 10px;
+    margin-top: 14px;
+    overflow: hidden;
+    background: var(--pst-color-background, #fff);
+  }
+  .architecture-group-header {
+    padding: 10px 14px;
+    background: rgba(15, 108, 189, 0.08);
+    color: #0f6cbd;
+    font-size: 0.85rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    border-bottom: 1px solid var(--pst-color-border, #d9d9d9);
+  }
+  .architecture-group-body {
+    padding: 14px;
+    display: grid;
+    gap: 12px;
+  }
+  .feature-set-title {
+    font-size: 0.95rem;
+    font-weight: 700;
+    margin: 0 0 10px 0;
+    color: var(--pst-color-text-base, #333);
+  }
+  .version-label {
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--pst-color-text-muted, #777);
   }
   .btn-download {
     display: inline-flex;
@@ -174,9 +214,11 @@ Use this page to search and download trained RouteE Powertrain models.
 
 
 <script>
-  const INDEX_URL = 'https://raw.githubusercontent.com/Byron-Selvage/Routee-Powertrain-Model-Dashboard/refs/heads/main/index.json';
+  // const INDEX_URL = 'https://raw.githubusercontent.com/Byron-Selvage/Routee-Powertrain-Model-Dashboard/refs/heads/main/index.json';
+  const INDEX_URL = '../../../dummy_index.json';
   let allModels = [];
   let groupedModels = [];
+  let currentRenderedGroups = [];
 
   // Helper to format model titles
   function formatTitle(value) {
@@ -191,7 +233,7 @@ Use this page to search and download trained RouteE Powertrain models.
 
     // Capitalize words 3 letters or less (e.g. BMW, BYD)
     const words = titleCased.split(' ');
-    const formattedWords = words.map(word => {
+    const formattedWords = words.map((word) => {
       const wordOnly = word.replace(/[^\w\s]/gi, '');
       if (wordOnly.length <= 3) {
         return word.toUpperCase();
@@ -202,10 +244,21 @@ Use this page to search and download trained RouteE Powertrain models.
     return formattedWords.join(' ');
   }
 
+  function formatArchitectureTag(value) {
+    const labels = {
+      random_forest: 'Random Forest',
+      ngboost: 'NGBoost',
+      cnn: 'CNN'
+    };
+
+    const key = String(value || '').toLowerCase();
+    return labels[key] || formatTitle(value);
+  }
+
   // Helper to safely parse and find range for various formats of year info
   function parseYearRange(yearData) {
     if (Array.isArray(yearData)) {
-      const years = yearData.map(Number).filter(n => !isNaN(n));
+      const years = yearData.map(Number).filter((n) => !isNaN(n));
       if (years.length === 0) return { min: -Infinity, max: Infinity };
       return { min: Math.min(...years), max: Math.max(...years) };
     }
@@ -214,7 +267,7 @@ Use this page to search and download trained RouteE Powertrain models.
     }
     if (typeof yearData === 'string') {
       if (yearData.includes('-')) {
-        const parts = yearData.split('-').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n));
+        const parts = yearData.split('-').map((s) => parseInt(s.trim(), 10)).filter((n) => !isNaN(n));
         if (parts.length === 2) {
           return { min: parts[0], max: parts[1] };
         }
@@ -227,15 +280,6 @@ Use this page to search and download trained RouteE Powertrain models.
     return { min: -Infinity, max: Infinity };
   }
 
-  // Format year array or single value to string
-  function formatYear(yearData) {
-    if (Array.isArray(yearData)) {
-      if (yearData.length === 1) return yearData[0];
-      return `${Math.min(...yearData)} - ${Math.max(...yearData)}`;
-    }
-    return yearData || 'Unknown';
-  }
-
   // Generate python loading snippet
   function getSnippet(model) {
     const make = model.model_id?.make || '';
@@ -243,15 +287,112 @@ Use this page to search and download trained RouteE Powertrain models.
     const year = model.model_id?.year || '';
     const config = model.model_id?.config_slug || '';
     const version = model.model_id?.version || '';
-    
+
     const modelId = `${make}_${modelName}_${year}_${config}_v${version}`
       .replace(/_+/g, '_')
       .replace(/^_|_$/g, '');
-      
+
     return `import nrel.routee.powertrain as pt\n\nmodel = pt.load_model("${modelId}")\nprint(model)`;
   }
 
-  // Load the model catalog from relative path
+  function getFeatureSetName(model, idx) {
+    const candidates = [
+      model.feature_set_name,
+      model.feature_set,
+      model.model_name,
+      model.model_id?.config_slug
+    ];
+    const value = candidates.find((v) => v != null && String(v).trim() !== '');
+    return value ? formatTitle(value) : `Feature Set ${idx + 1}`;
+  }
+
+  function getDownloadUrl(model) {
+    const candidates = [
+      model.model_asset_url,
+      model.download_url,
+      model.model_url,
+      model.url
+    ];
+    const value = candidates.find((v) => typeof v === 'string' && v.trim() !== '');
+    return value || 'https://www.youtube.com/watch?v=dQw4w9WgXcQ';
+  }
+
+  function getVersionYearRange(versionGroup) {
+    const ranges = versionGroup.featureSets.map((m) => parseYearRange(m.model_id?.year));
+    const mins = ranges.map((r) => r.min).filter(Number.isFinite);
+    const maxes = ranges.map((r) => r.max).filter(Number.isFinite);
+
+    if (mins.length === 0 || maxes.length === 0) {
+      return { min: -Infinity, max: Infinity };
+    }
+
+    return {
+      min: Math.min(...mins),
+      max: Math.max(...maxes)
+    };
+  }
+
+  function getVersionYearDisplay(versionGroup) {
+    const range = getVersionYearRange(versionGroup);
+    if (!Number.isFinite(range.min) || !Number.isFinite(range.max)) return 'Unknown';
+    return range.min === range.max ? String(range.min) : `${range.min} - ${range.max}`;
+  }
+
+  function renderFeatureSets(versionGroup) {
+    const architectureGroups = {};
+
+    versionGroup.featureSets.forEach((model) => {
+      const architectureKey = String(model.architecture_tag || 'unknown').toLowerCase();
+      const architectureLabel = formatArchitectureTag(model.architecture_tag);
+
+      if (!architectureGroups[architectureKey]) {
+        architectureGroups[architectureKey] = {
+          architectureLabel,
+          featureSets: []
+        };
+      }
+
+      architectureGroups[architectureKey].featureSets.push(model);
+    });
+
+    return Object.values(architectureGroups).map((architectureGroup) => {
+      const cards = architectureGroup.featureSets.map((model, idx) => {
+        const features = (model.feature_names || []).map((f) => `<li>${f}</li>`).join('');
+        const snippet = getSnippet(model);
+        const featureSetName = getFeatureSetName(model, idx);
+        const downloadUrl = getDownloadUrl(model);
+
+        return `
+          <div class="feature-set-card">
+            <h3 class="feature-set-title">${featureSetName}</h3>
+
+            <div style="font-size: 0.85rem; font-weight: bold;">Expected Features:</div>
+            <ul class="feature-list">
+              ${features || '<li>No features listed</li>'}
+            </ul>
+
+            <div class="snippet-wrapper">
+              <button class="copy-btn" onclick="copySnippet(this)">Copy</button>
+              <div class="snippet-box">${snippet}</div>
+            </div>
+
+            <a href="${downloadUrl}" class="btn-download" target="_blank">Download Model Asset</a>
+          </div>
+        `;
+      }).join('');
+
+      return `
+        <div class="architecture-group">
+          <div class="architecture-group-header">Architecture: ${architectureGroup.architectureLabel}</div>
+          <div class="architecture-group-body">
+            ${cards}
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  // Load the model catalog from remote then relative fallback
   async function loadIndex() {
     const indexUrls = [INDEX_URL, './_static/index.json'];
     let lastAttempt = { indexUrl: INDEX_URL, error: null };
@@ -272,52 +413,130 @@ Use this page to search and download trained RouteE Powertrain models.
       }
     }
 
-      document.getElementById('results-container').innerHTML = `
-        <div id="status-message" style="color: #d9534f;">
-          <strong>Error: Failed to load model catalog.</strong><br>
-          <span style="font-size: 0.9rem; display: block; margin-top: 8px;">
-            Could not retrieve data from <code>${lastAttempt.indexUrl}</code>. Make sure the published site includes a readable <code>index.json</code>.
-          </span>
-        </div>`;
-      console.error('Error loading index.json:', lastAttempt.error);
+    document.getElementById('results-container').innerHTML = `
+      <div id="status-message" style="color: #d9534f;">
+        <strong>Error: Failed to load model catalog.</strong><br>
+        <span style="font-size: 0.9rem; display: block; margin-top: 8px;">
+          Could not retrieve data from <code>${lastAttempt.indexUrl}</code>. Make sure the published site includes a readable <code>index.json</code>.
+        </span>
+      </div>`;
+    console.error('Error loading index.json:', lastAttempt.error);
   }
 
   // Populate dynamic filtering dropdowns
   function populateFilters() {
-    const makes = [...new Set(allModels.map(m => m.model_id?.make).filter(Boolean))].sort();
-    const models = [...new Set(allModels.map(m => m.vehicle_model || m.model_id?.vehicle_slug).filter(Boolean))].sort();
-    const powertrains = [...new Set(allModels.map(m => m.powertrain_type).filter(Boolean))].sort();
+    const makes = [...new Set(allModels.map((m) => m.model_id?.make).filter(Boolean))].sort();
+    const models = [...new Set(allModels.map((m) => m.vehicle_model || m.model_id?.vehicle_slug).filter(Boolean))].sort();
+    const powertrains = [...new Set(allModels.map((m) => m.powertrain_type).filter(Boolean))].sort();
 
     const makeSelect = document.getElementById('make-filter');
     const modelSelect = document.getElementById('model-filter');
     const ptSelect = document.getElementById('powertrain-filter');
 
-    makes.forEach(make => makeSelect.add(new Option(make, make)));
-    models.forEach(model => modelSelect.add(new Option(model, model)));
-    powertrains.forEach(pt => ptSelect.add(new Option(pt, pt)));
+    makes.forEach((make) => makeSelect.add(new Option(make, make)));
+    models.forEach((model) => modelSelect.add(new Option(model, model)));
+    powertrains.forEach((pt) => ptSelect.add(new Option(pt, pt)));
   }
 
-  // Group models by key (make + vehicle + powertrain) and sort by version (descending)
+  // Group by vehicle, then by version, preserving every feature set row in each version
   function groupModels() {
     const groups = {};
 
-    allModels.forEach(model => {
+    allModels.forEach((model) => {
       const make = model.model_id?.make || 'Unknown';
       const vehicle = model.vehicle_model || model.model_id?.vehicle_slug || 'Unknown';
       const pt = model.powertrain_type || 'Unknown';
       const key = `${make}|${vehicle}|${pt}`.toLowerCase();
 
-      if (!groups[key]) groups[key] = [];
-      groups[key].push(model);
+      if (!groups[key]) {
+        groups[key] = {
+          key,
+          make,
+          vehicle,
+          powertrain: pt,
+          byVersion: {}
+        };
+      }
+
+      const versionNum = parseInt(model.model_id?.version, 10) || 0;
+      if (!groups[key].byVersion[versionNum]) {
+        groups[key].byVersion[versionNum] = [];
+      }
+      groups[key].byVersion[versionNum].push(model);
     });
 
-    groupedModels = Object.values(groups).map(group => {
-      return group.sort((a, b) => {
-        const vA = parseInt(a.model_id?.version, 10) || 0;
-        const vB = parseInt(b.model_id?.version, 10) || 0;
-        return vB - vA;
-      });
+    groupedModels = Object.values(groups).map((group) => {
+      const versions = Object.entries(group.byVersion)
+        .map(([version, featureSets]) => ({
+          version: Number(version),
+          featureSets
+        }))
+        .sort((a, b) => b.version - a.version);
+
+      return {
+        key: group.key,
+        make: group.make,
+        vehicle: group.vehicle,
+        powertrain: group.powertrain,
+        versions
+      };
     });
+  }
+
+  function getPrimaryModel(group) {
+    const latestVersion = group.versions[0];
+    if (!latestVersion || latestVersion.featureSets.length === 0) return null;
+    return latestVersion.featureSets[0];
+  }
+
+  function getSearchText(group) {
+    const latestVersion = group.versions[0];
+    if (!latestVersion) return '';
+
+    const textParts = [group.make, group.vehicle, group.powertrain];
+    latestVersion.featureSets.forEach((model) => {
+      textParts.push(model.vehicle_description, ...(model.feature_names || []));
+    });
+
+    return textParts.filter(Boolean).join(' ').toLowerCase();
+  }
+
+  function renderVersionSelector(group, displayIndex) {
+    if (group.versions.length <= 1) {
+      return `<span class="version-label">Version ${group.versions[0]?.version ?? 'Unknown'}</span>`;
+    }
+
+    const options = group.versions.map((versionGroup, i) => {
+      const label = i === 0 ? `Version ${versionGroup.version} (Latest)` : `Version ${versionGroup.version}`;
+      return `<option value="${i}">${label}</option>`;
+    }).join('');
+
+    return `
+      <div class="version-select-wrapper">
+        <span style="font-size: 0.85rem; font-weight: 500;">Previous Versions:</span>
+        <select class="version-select" onchange="updateCardVersion(this, ${displayIndex})">
+          ${options}
+        </select>
+      </div>
+    `;
+  }
+
+  function renderCardBody(group, selectedVersionIdx) {
+    const versionGroup = group.versions[selectedVersionIdx] || group.versions[0];
+    const architectureLabels = [...new Set(versionGroup.featureSets.map((model) => formatArchitectureTag(model.architecture_tag)))];
+
+    return {
+      yearText: getVersionYearDisplay(versionGroup),
+      architectureText: architectureLabels.length === 1 ? architectureLabels[0] : 'Multiple Architectures',
+      featureSetsHtml: renderFeatureSets(versionGroup)
+    };
+  }
+
+  function updateCardDom(card, group, selectedVersionIdx) {
+    const { yearText, architectureText, featureSetsHtml } = renderCardBody(group, selectedVersionIdx);
+    card.querySelector('.year-display').innerText = yearText;
+    card.querySelector('.architecture-display').innerText = architectureText;
+    card.querySelector('.feature-sets-container').innerHTML = featureSetsHtml;
   }
 
   // Perform search and filtering on grouped list
@@ -329,35 +548,20 @@ Use this page to search and download trained RouteE Powertrain models.
     const yearMin = parseInt(document.getElementById('year-min').value, 10);
     const yearMax = parseInt(document.getElementById('year-max').value, 10);
 
-    const filtered = groupedModels.filter(group => {
-      const latest = group[0]; // Filter against the latest version by default
+    const filtered = groupedModels.filter((group) => {
+      const latest = getPrimaryModel(group);
+      if (!latest) return false;
 
-      // Make Filter
-      if (make && latest.model_id?.make !== make) return false;
+      if (make && group.make !== make) return false;
+      if (modelStr && group.vehicle !== modelStr) return false;
+      if (pt && group.powertrain !== pt) return false;
 
-      // Model Filter
-      const vModel = latest.vehicle_model || latest.model_id?.vehicle_slug;
-      if (modelStr && vModel !== modelStr) return false;
+      const latestYearRange = getVersionYearRange(group.versions[0]);
+      if (!isNaN(yearMin) && latestYearRange.max < yearMin) return false;
+      if (!isNaN(yearMax) && latestYearRange.min > yearMax) return false;
 
-      // Powertrain Filter
-      if (pt && latest.powertrain_type !== pt) return false;
-
-      // Year Filter
-      const { min: mMin, max: mMax } = parseYearRange(latest.model_id?.year);
-      if (!isNaN(yearMin) && mMax < yearMin) return false;
-      if (!isNaN(yearMax) && mMin > yearMax) return false;
-
-      // Text Query
       if (query) {
-        const matchText = [
-          latest.model_id?.make,
-          latest.vehicle_model,
-          latest.model_id?.vehicle_slug,
-          latest.powertrain_type,
-          latest.vehicle_description,
-          ...(latest.feature_names || [])
-        ].join(' ').toLowerCase();
-
+        const matchText = getSearchText(group);
         if (!matchText.includes(query)) return false;
       }
 
@@ -371,6 +575,7 @@ Use this page to search and download trained RouteE Powertrain models.
   function renderResults(results) {
     const container = document.getElementById('results-container');
     container.innerHTML = '';
+    currentRenderedGroups = results;
 
     if (results.length === 0) {
       container.innerHTML = '<div id="status-message">No models match your search criteria.</div>';
@@ -378,58 +583,40 @@ Use this page to search and download trained RouteE Powertrain models.
     }
 
     results.forEach((group, groupIndex) => {
-      const latest = group[0];
+      const latest = getPrimaryModel(group);
+      if (!latest) return;
+
       const card = document.createElement('div');
       card.className = 'result-card';
 
-      const title = `${formatTitle(latest.model_id?.make)} ${formatTitle(latest.vehicle_model || latest.model_id?.vehicle_slug || '')}`
-      const subtitle = latest.vehicle_description ? `<div style="font-size: 0.9rem; color: var(--pst-color-text-muted, #555); margin-bottom: 12px;">${latest.vehicle_description}</div>` : '';
-
-      const features = (latest.feature_names || []).map(f => `<li>${f}</li>`).join('');
-      const snippet = getSnippet(latest);
-
-      let versionSelector = '';
-      if (group.length > 1) {
-        const options = group.map((m, i) => 
-          `<option value="${i}">Version ${m.model_id?.version || 'Unknown'}</option>`
-        ).join('');
-        versionSelector = `
-          <div class="version-select-wrapper">
-            <span style="font-size: 0.85rem; font-weight: 500;">Select version:</span>
-            <select class="version-select" onchange="updateCardVersion(this, ${groupIndex})">
-              ${options}
-            </select>
-          </div>
-        `;
-      } else {
-        versionSelector = `<span style="font-size: 0.85rem; color: var(--pst-color-text-muted, #777); font-weight: 500;">Version ${latest.model_id?.version || 'Unknown'}</span>`;
-      }
+      const title = `${formatTitle(group.make)} ${formatTitle(group.vehicle)}`;
+      const subtitle = latest.vehicle_description
+        ? `<div style="font-size: 0.9rem; color: var(--pst-color-text-muted, #555); margin-bottom: 12px;">${latest.vehicle_description}</div>`
+        : '';
+      const { yearText, architectureText, featureSetsHtml } = renderCardBody(group, 0);
+      const versionSelector = renderVersionSelector(group, groupIndex);
 
       card.innerHTML = `
         <div class="result-header">
           <div>
             <h2 class="result-title">${title}</h2>
             <div style="font-size: 0.85rem; color: #0f6cbd; font-weight: bold; margin-top: 4px; text-transform: uppercase;">
-              ${latest.powertrain_type || 'Unknown Powertrain'}
+              ${group.powertrain || 'Unknown Powertrain'}
+            </div>
+            <div style="font-size: 0.85rem; color: var(--pst-color-text-muted, #555); margin-top: 4px;">
+              <strong>Architecture:</strong> <span class="architecture-display">${architectureText}</span>
             </div>
           </div>
-          <span class="meta-tag"><strong>Year:</strong> <span class="year-display">${formatYear(latest.model_id?.year)}</span></span>
+          <span class="meta-tag"><strong>Year:</strong> <span class="year-display">${yearText}</span></span>
         </div>
 
         ${subtitle}
 
-        <div style="font-size: 0.85rem; font-weight: bold;">Expected Features:</div>
-        <ul class="feature-list">
-          ${features || '<li>No features listed</li>'}
-        </ul>
-
-        <div class="snippet-wrapper">
-          <button class="copy-btn" onclick="copySnippet(this)">Copy</button>
-          <div class="snippet-box">${snippet}</div>
+        <div class="feature-sets-container">
+          ${featureSetsHtml}
         </div>
 
         <div class="actions-row">
-          <a href="https://www.youtube.com/watch?v=dQw4w9WgXcQ" class="btn-download" target="_blank">Download Model Asset</a>
           ${versionSelector}
         </div>
       `;
@@ -439,24 +626,13 @@ Use this page to search and download trained RouteE Powertrain models.
   }
 
   // Update dynamic properties when user toggles a version
-  window.updateCardVersion = function(selectElement, groupIndex) {
-    const versionIndex = selectElement.value;
-    const model = groupedModels[groupIndex][versionIndex];
+  window.updateCardVersion = function(selectElement, renderedGroupIndex) {
+    const versionIndex = parseInt(selectElement.value, 10) || 0;
+    const group = currentRenderedGroups[renderedGroupIndex];
     const card = selectElement.closest('.result-card');
 
-    // Update expected features
-    const featureList = card.querySelector('.feature-list');
-    featureList.innerHTML = (model.feature_names || []).map(f => `<li>${f}</li>`).join('') || '<li>No features listed</li>';
-
-    // Update year display
-    card.querySelector('.year-display').innerText = formatYear(model.model_id?.year);
-
-    // Update load snippet
-    card.querySelector('.snippet-box').innerText = getSnippet(model);
-
-    // Update download path
-    const downloadBtn = card.querySelector('.btn-download');
-    downloadBtn.href = "https://www.youtube.com/watch?v=dQw4w9WgXcQ";
+    if (!group || !card) return;
+    updateCardDom(card, group, versionIndex);
   };
 
   // Quick clipboard utility
