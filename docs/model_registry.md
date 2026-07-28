@@ -377,13 +377,50 @@ const renderArchitectureGroup = (arch, models) => `
       </div>
     </div>`;
 
-  const renderVersionContent = (version, filterArch = '') => {
+  const renderVersionContent = (version, filterArch = '', group = null) => {
+    // Grab the current text search query
+    const query = searchInput.value.toLowerCase().trim();
+    const searchTerms = query.split(/\s+/).filter(Boolean);
+
     const byArch = version.featureSets.reduce((acc, model) => {
+      // 1. Dropdown architecture filter
       if (filterArch && model.architectureTag != filterArch) return acc;
+
+      // 2. Text search filter at the specific model/feature-set level
+      if (searchTerms.length > 0 && group) {
+        const allYears = [];
+        if (version.yearRange) {
+          for (let y = version.yearRange.min; y <= version.yearRange.max; y++) {
+            allYears.push(String(y));
+          }
+        }
+        
+        const searchableMetadata = [
+          group.make,
+          group.vehicle,
+          group.powertrain,
+          model.architectureTag,
+          model.featureSetName,
+          ...(model.feature_names || []),
+          ...allYears
+        ].map(str => String(str || '').toLowerCase());
+        
+        const matchesAllTerms = searchTerms.every(term => 
+          searchableMetadata.some(meta => meta.includes(term))
+        );
+        
+        // If this specific architecture/model doesn't match the search, skip rendering it
+        if (!matchesAllTerms) return acc;
+      }
+
       (acc[model.architectureTag] = acc[model.architectureTag] || []).push(model);
       return acc;
     }, {});
-    return Object.entries(byArch).map(([arch, models]) => renderArchitectureGroup(arch, models)).join('');
+
+    const content = Object.entries(byArch).map(([arch, models]) => renderArchitectureGroup(arch, models)).join('');
+    
+    // Provide fallback text if a search matches the vehicle group but not this specific version's contents
+    return content || '<div style="padding: 20px; text-align: center; color: #777;">No models in this version match the specific search terms.</div>';
   };
 
   const renderVersionSelector = (group, groupIndex) => {
@@ -418,7 +455,7 @@ const renderArchitectureGroup = (arch, models) => `
           <div style="font-weight: bold; text-transform: uppercase;">${String(group.powertrain).replace(/_/g, ' ')}</div>
         </div>
       </div>
-      <div class="feature-sets-container">${renderVersionContent(latestVersion, activeArch)}</div>
+      <div class="feature-sets-container">${renderVersionContent(latestVersion, activeArch, group)}</div>
       <div class="actions-row">${renderVersionSelector(group, groupIndex)}</div>
     `;
     resultsContainer.appendChild(card);
@@ -505,28 +542,29 @@ const renderArchitectureGroup = (arch, models) => `
   };
   
   const handleEventDelegation = (e) => {
-      // Version selection change
-      if (e.target.matches('.version-select')) {
-        const groupIndex = e.target.dataset.groupIndex;
-        const versionIndex = e.target.value;
-        const group = currentRenderedGroups[groupIndex];
-        const card = e.target.closest('.result-card');
-        if (group && card) {
-          const version = group.versions[versionIndex];
-          const activeArch = architectureFilter.value;
-          
-          card.querySelector('.year-display').textContent = getVersionYearDisplay(version.yearRange);
-          card.querySelector('.feature-sets-container').innerHTML = renderVersionContent(version, activeArch);
-        }
+    // Version selection change
+    if (e.target.matches('.version-select')) {
+      const groupIndex = e.target.dataset.groupIndex;
+      const versionIndex = e.target.value;
+      const group = currentRenderedGroups[groupIndex];
+      const card = e.target.closest('.result-card');
+      if (group && card) {
+        const version = group.versions[versionIndex];
+        const activeArch = architectureFilter.value;
+        
+        card.querySelector('.year-display').textContent = getVersionYearDisplay(version.yearRange);
+        card.querySelector('.feature-sets-container').innerHTML = renderVersionContent(version, activeArch, group);
       }
-      // Copy button click
-      if (e.target.matches('.copy-btn')) {
-          const snippet = e.target.nextElementSibling.innerText;
-          navigator.clipboard.writeText(snippet).then(() => {
-              e.target.textContent = 'Copied!';
-              setTimeout(() => { e.target.textContent = 'Copy'; }, 2000);
-          });
-      }
+    }
+    
+    // Copy button click
+    if (e.target.matches('.copy-btn')) {
+      const snippet = e.target.nextElementSibling.innerText;
+      navigator.clipboard.writeText(snippet).then(() => {
+        e.target.textContent = 'Copied!';
+        setTimeout(() => { e.target.textContent = 'Copy'; }, 2000);
+      });
+    }
   };
 
   const init = async () => {
