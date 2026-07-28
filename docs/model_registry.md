@@ -293,7 +293,7 @@ document.addEventListener('DOMContentLoaded', () => {
       variantName: formatTitle(id.config_slug || 'Feature Set').replace("RF ", "Random Forest ").replace("NGB ", "NGBoost "),
       downloadUrl: fallbackUrl || model.path, // Switch ordering here when connected to S3 bucket for download link -- Update Fallback URL to something useful
       yearRange: parseYears(id.year),
-      pySnippet: `import nrel.routee.powertrain as pt\n\nmodel = pt.load_model("${modelIdString}")`
+      pySnippet: `import routee.powertrain as pt\n\nmodel = pt.load_model("${modelIdString}")`
     };
   };
 
