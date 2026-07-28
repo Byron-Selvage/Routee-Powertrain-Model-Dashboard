@@ -2,6 +2,7 @@
 
 Use this page to search and download trained RouteE Powertrain models.
 
+<!-- Styling for the dynamic portions of the page. -->
 <style>
   .dashboard-container {
     max-width: 100%;
@@ -56,11 +57,6 @@ Use this page to search and download trained RouteE Powertrain models.
     font-size: 1.3rem;
     color: #0f6cbd;
     font-weight: 600;
-  }
-  .meta-tag {
-    font-size: 0.9rem;
-    font-weight: 500;
-    color: var(--pst-color-text-muted, #666);
   }
   .feature-list {
     display: flex;
@@ -123,11 +119,6 @@ Use this page to search and download trained RouteE Powertrain models.
     margin-top: 12px;
     background: var(--pst-color-surface, #fafafa);
   }
-  .architecture-group-body {
-    padding: 14px;
-    display: grid;
-    gap: 12px;
-  }
   .feature-set-title {
     font-size: 0.95rem;
     font-weight: 700;
@@ -182,8 +173,8 @@ Use this page to search and download trained RouteE Powertrain models.
   .snippet-box .token-punctuation { color: #d4d4d4; }
 </style>
 
+<!-- Base div that everything gets dynamically added into -->
 <div class="dashboard-container">
-
   <div class="filters-grid">
     <input type="search" id="search-input" placeholder="Search models, powertrain, features...">
     <select id="make-filter"><option value="">All Makes</option></select>
@@ -199,6 +190,7 @@ Use this page to search and download trained RouteE Powertrain models.
   </div>
 </div>
 
+<!-- The script controlling the dynamic portions of the page. -->
 <script>
 document.addEventListener('DOMContentLoaded', () => {
 
@@ -220,7 +212,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // --- Utility Functions ---
 
-  /** Capitalizes words in a string, handling short acronyms. */
+  /** Capitalizes words in a string. Words 3 letters or less all letters are capitalized. */
   const formatTitle = (value) => {
     if (!value) return 'Unknown';
     return String(value)
@@ -230,21 +222,16 @@ document.addEventListener('DOMContentLoaded', () => {
       .join(' ');
   };
 
-  /** Applies basic, non-destructive syntax highlighting to a Python snippet. */
+  /** Applies syntax highlighting to a Python snippet. */
+  /** This one could be removed but it was bugging me to have code without syntax highlighting */
   const highlightPySnippet = (code) => {
     if (!code) return '';
 
-    // Escape HTML characters first to prevent raw rendering issues
-    let escaped = code
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;');
-
-    // Define regex patterns for Python tokens
+    // Regex patterns for Python tokens
     const tokenRegex = /(".*?")|\b(import|as)\b|\b(load_model)\b|\b(pt|model)\b|([=().,])/g;
 
-    // Replace tokens in a single pass based on which capturing group matched
-    return escaped.replace(tokenRegex, (match, string, keyword, fn, variable, punctuation) => {
+    //Wrap tokens in styling
+    return code.replace(tokenRegex, (match, string, keyword, fn, variable, punctuation) => {
       if (string) {
         return `<span class="token-string">${string}</span>`;
       } else if (keyword) {
@@ -260,7 +247,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   };
 
-  /** Maps architecture keys to human-readable labels. */
+  /** Formatting for architecture keys. */
   const formatArchitectureTag = (value) => {
     const labels = { random_forest: 'Random Forest', ngboost: 'NGBoost', cnn: 'CNN' };
     return labels[String(value || '').toLowerCase()] || formatTitle(value);
@@ -287,29 +274,27 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // --- Data Processing ---
 
-  /** Takes a raw model object and enriches it with standardized, defaulted properties. */
+  /** Takes a raw model object pulls out the needed properties. */
   const processModelData = (model) => {
     const id = model.model_id || {};
     const fallbackUrl = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ';
-    const modelIdString = `${id.make}_${id.vehicle_slug}_${id.year}_${id.config_slug}_v${id.version}`.replace(/_undefined|_null/g, '').replace(/_+/g, '_').replace(/^_|_$/g, '');
+    const modelIdString = 'PLACEHOLDER'; // Update to correct python model name here
 
     return {
       ...model,
-      // Standardized properties
       make: id.make || 'Unknown',
-      vehicleModel: model.vehicle_model || id.vehicle_slug || 'Unknown',
+      vehicleModel: model.vehicle_model || 'Unknown',
       powertrain: model.powertrain_type || 'Unknown',
       version: parseInt(id.version, 10) || 0,
       architectureTag: model.architecture_tag || 'unknown',
-      // Processed properties
-      featureSetName: formatTitle(model.feature_set_name || model.feature_set || model.model_name || id.config_slug || 'Feature Set'),
-      downloadUrl: model.model_asset_url || model.download_url || model.url || fallbackUrl,
+      variantName: formatTitle(id.config_slug || 'Feature Set').replace("RF ", "Random Forest ").replace("NGB ", "NGBoost "),
+      downloadUrl: fallbackUrl || model.path, // Switch ordering here when connected to S3 bucket for download link -- Update Fallback URL to something useful
       yearRange: parseYearRange(id.year),
       pySnippet: `import nrel.routee.powertrain as pt\n\nmodel = pt.load_model("${modelIdString}")`
     };
   };
 
-  /** Groups the flat list of models by vehicle, then by version. */
+  /** Groups the flat list of models by vehicle, then by version tag. */
   const groupModelsByVehicle = (models) => {
     const groups = models.reduce((acc, model) => {
       const key = `${model.make}|${model.vehicleModel}|${model.powertrain}`.toLowerCase();
@@ -336,7 +321,7 @@ document.addEventListener('DOMContentLoaded', () => {
             };
           }, { min: Infinity, max: -Infinity })
         }))
-        .sort((a, b) => b.version - a.version); // Sort versions descending
+        .sort((a, b) => b.version - a.version);
       return group;
     });
   };
@@ -346,27 +331,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const selectedMake = makeFilter.value;
     const currentSelectedModel = modelFilter.value;
 
-    // Clear existing model options (except for the default "All Models" first option)
     modelFilter.innerHTML = '<option value="">All Models</option>';
-
-    // Determine which models should be visible
-    const filteredModels = selectedMake 
-      ? models.filter(m => m.make === selectedMake)
-      : models;
-
-    // Extract unique model slugs/names and sort them
+    const filteredModels = selectedMake? models.filter(m => m.make === selectedMake): models;
     const uniqueModels = [...new Set(filteredModels.map(m => m.vehicleModel).filter(Boolean))].sort();
-
-    // Re-add options
+    
     uniqueModels.forEach(m => {
       modelFilter.add(new Option(formatTitle(m), m));
     });
 
-    // Preserve the user's previously selected model if it is still a valid choice
     if (uniqueModels.includes(currentSelectedModel)) {
       modelFilter.value = currentSelectedModel;
     } else {
-      modelFilter.value = ""; // Fallback to "All Models" if it doesn't belong to the new make
+      modelFilter.value = "";
     }
   };
 
@@ -374,20 +350,19 @@ document.addEventListener('DOMContentLoaded', () => {
   const populateFilters = (models) => {
     const getOptions = (key) => [...new Set(models.map(m => m[key]).filter(Boolean))].sort();
     
-    // Populate static filters
     getOptions('make').forEach(v => makeFilter.add(new Option(formatTitle(v), v)));
     getOptions('powertrain').forEach(v => powertrainFilter.add(new Option(String(v).replace(/_/g, ' '), v)));
     getOptions('architectureTag').forEach(arch => architectureFilter.add(new Option(formatArchitectureTag(arch), arch)));
 
-    // Populate dynamic model filter
     updateModelOptions(models);
   };
+
 
   // --- Rendering Functions ---
 
   const renderFeatureSetCard = (model) => `
     <div class="feature-set-card">
-      <h3 class="feature-set-title">${model.featureSetName}</h3>
+      <h3 class="feature-set-title">${model.variantName}</h3>
       <div style="font-size: 0.85rem; font-weight: bold;">Expected Features:</div>
       <ul class="feature-list">
         ${(model.feature_names || []).map(f => `<li>${f}</li>`).join('') || '<li>No features listed</li>'}
@@ -411,15 +386,12 @@ const renderArchitectureGroup = (arch, models) => `
     </div>`;
 
   const renderVersionContent = (version, filterArch = '', group = null) => {
-    // Grab the current text search query
     const query = searchInput.value.toLowerCase().trim();
     const searchTerms = query.split(/\s+/).filter(Boolean);
 
     const byArch = version.featureSets.reduce((acc, model) => {
-      // 1. Dropdown architecture filter
       if (filterArch && model.architectureTag != filterArch) return acc;
 
-      // 2. Text search filter at the specific model/feature-set level
       if (searchTerms.length > 0 && group) {
         const allYears = [];
         if (version.yearRange) {
@@ -433,7 +405,7 @@ const renderArchitectureGroup = (arch, models) => `
           group.vehicle,
           group.powertrain,
           model.architectureTag,
-          model.featureSetName,
+          model.variantName,
           ...(model.feature_names || []),
           ...allYears
         ].map(str => String(str || '').toLowerCase());
@@ -442,7 +414,6 @@ const renderArchitectureGroup = (arch, models) => `
           searchableMetadata.some(meta => meta.includes(term))
         );
         
-        // If this specific architecture/model doesn't match the search, skip rendering it
         if (!matchesAllTerms) return acc;
       }
 
@@ -452,7 +423,6 @@ const renderArchitectureGroup = (arch, models) => `
 
     const content = Object.entries(byArch).map(([arch, models]) => renderArchitectureGroup(arch, models)).join('');
     
-    // Provide fallback text if a search matches the vehicle group but not this specific version's contents
     return content || '<div style="padding: 20px; text-align: center; color: #777;">No models in this version match the specific search terms.</div>';
   };
 
@@ -504,7 +474,7 @@ const renderArchitectureGroup = (arch, models) => `
     filteredGroups.forEach(renderVehicleCard);
   };
 
-  // --- Event Handlers & Main Logic ---
+  // --- Event Handlers ---
 
   const handleSearch = () => {
     // Dropdown and Year Range Filters
@@ -532,10 +502,7 @@ const renderArchitectureGroup = (arch, models) => `
 
       // Text Search
       if (query) {
-        // Split the search query by spaces into individual search terms
         const searchTerms = query.split(/\s+/).filter(Boolean);
-
-        // Collect all years across all versions of this vehicle group to match search queries like "2020"
         const allYears = group.versions.flatMap(v => {
           if (!v.yearRange) return [];
           const years = [];
@@ -545,13 +512,8 @@ const renderArchitectureGroup = (arch, models) => `
           return years;
         });
 
-        // Gather all architecture tags used in this group
         const groupArchs = group.versions.flatMap(v => v.featureSets.map(m => m.architectureTag || ''));
-
-        // Gather all feature names
         const groupFeatures = group.versions.flatMap(v => v.featureSets.flatMap(m => m.feature_names || []));
-
-        // Construct a unified array of searchable strings for this vehicle group
         const searchableMetadata = [
           group.make,
           group.vehicle,
@@ -561,7 +523,6 @@ const renderArchitectureGroup = (arch, models) => `
           ...groupFeatures
         ].map(str => String(str).toLowerCase());
 
-        // Every single search term must match (partial match) at least one item in our metadata pool
         const matchesAllTerms = searchTerms.every(term => 
           searchableMetadata.some(meta => meta.includes(term))
         );
@@ -575,7 +536,6 @@ const renderArchitectureGroup = (arch, models) => `
   };
   
   const handleEventDelegation = (e) => {
-    // Version selection change
     if (e.target.matches('.version-select')) {
       const groupIndex = e.target.dataset.groupIndex;
       const versionIndex = e.target.value;
@@ -590,7 +550,6 @@ const renderArchitectureGroup = (arch, models) => `
       }
     }
 
-    // Copy button click
     if (e.target.matches('.copy-btn')) {
       const snippet = e.target.nextElementSibling.innerText;
       navigator.clipboard.writeText(snippet).then(() => {
@@ -618,12 +577,10 @@ const renderArchitectureGroup = (arch, models) => `
     }
   };
 
-  // Attach event listeners
   [searchInput, makeFilter, modelFilter, powertrainFilter, architectureFilter, yearMinInput, yearMaxInput].forEach(el => 
     el.addEventListener('input', handleSearch)
   );
 
-  // Dynamic dropdown dependency trigger
   makeFilter.addEventListener('change', () => {
     updateModelOptions(allModels);
     handleSearch();
@@ -632,7 +589,6 @@ const renderArchitectureGroup = (arch, models) => `
   resultsContainer.addEventListener('change', handleEventDelegation);
   resultsContainer.addEventListener('click', handleEventDelegation);
 
-  // Start the application
   init();
 });
 </script>
