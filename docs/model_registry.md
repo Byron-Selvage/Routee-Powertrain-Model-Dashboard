@@ -437,7 +437,8 @@ const renderArchitectureGroup = (arch, models) => `
   // --- Event Handlers & Main Logic ---
 
   const handleSearch = () => {
-    const query = searchInput.value.toLowerCase();
+    // Dropdown and Year Range Filters
+    const query = searchInput.value.toLowerCase().trim();
     const make = makeFilter.value;
     const model = modelFilter.value;
     const pt = powertrainFilter.value;
@@ -454,14 +455,50 @@ const renderArchitectureGroup = (arch, models) => `
       if (yearMin && latestYear && latestYear.max < yearMin) return false;
       if (yearMax && latestYear && latestYear.min > yearMax) return false;
 
-      if (query) {
-        const searchText = (group.key + group.versions.flatMap(v => v.featureSets.flatMap(m => m.feature_names)).join(' ')).toLowerCase();
-        if (!searchText.includes(query)) return false;
-      }
       if (arch) {
         const hasMatchingArch = group.versions.some(v => v.featureSets.some(m => m.architectureTag === arch));
         if (!hasMatchingArch) return false;
       }
+
+      // Text Search
+      if (query) {
+        // Split the search query by spaces into individual search terms
+        const searchTerms = query.split(/\s+/).filter(Boolean);
+
+        // Collect all years across all versions of this vehicle group to match search queries like "2020"
+        const allYears = group.versions.flatMap(v => {
+          if (!v.yearRange) return [];
+          const years = [];
+          for (let y = v.yearRange.min; y <= v.yearRange.max; y++) {
+            years.push(String(y));
+          }
+          return years;
+        });
+
+        // Gather all architecture tags used in this group
+        const groupArchs = group.versions.flatMap(v => v.featureSets.map(m => m.architectureTag || ''));
+
+        // Gather all feature names
+        const groupFeatures = group.versions.flatMap(v => v.featureSets.flatMap(m => m.feature_names || []));
+
+        // Construct a unified array of searchable strings for this vehicle group
+        const searchableMetadata = [
+          group.make,
+          group.vehicle,
+          group.powertrain,
+          ...allYears,
+          ...groupArchs,
+          ...groupFeatures
+        ].map(str => String(str).toLowerCase());
+
+        // Every single search term must match (partial match) at least one item in our metadata pool
+        const matchesAllTerms = searchTerms.every(term => 
+          searchableMetadata.some(meta => meta.includes(term))
+        );
+
+        if (!matchesAllTerms) return false;
+      }
+      
       return true;
     });
     renderResults(filtered);
