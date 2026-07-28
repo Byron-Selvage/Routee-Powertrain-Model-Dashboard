@@ -202,8 +202,8 @@ Use this page to search and download trained RouteE Powertrain models.
 <script>
 document.addEventListener('DOMContentLoaded', () => {
 
-  const INDEX_URL = '../../../dummy_index.json';
-  // const INDEX_URL = 'https://raw.githubusercontent.com/Byron-Selvage/Routee-Powertrain-Model-Dashboard/refs/heads/main/index.json';
+  // const INDEX_URL = '../../../dummy_index.json';
+  const INDEX_URL = 'https://raw.githubusercontent.com/Byron-Selvage/Routee-Powertrain-Model-Dashboard/refs/heads/main/index.json';
   let allModels = [];
   let vehicleGroups = [];
   let currentRenderedGroups = [];
@@ -341,13 +341,46 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   };
 
-  /** Populates filter dropdowns from the available model data. */
+  /** Re-populates the model dropdown based on the currently selected make */
+  const updateModelOptions = (models) => {
+    const selectedMake = makeFilter.value;
+    const currentSelectedModel = modelFilter.value;
+
+    // Clear existing model options (except for the default "All Models" first option)
+    modelFilter.innerHTML = '<option value="">All Models</option>';
+
+    // Determine which models should be visible
+    const filteredModels = selectedMake 
+      ? models.filter(m => m.make === selectedMake)
+      : models;
+
+    // Extract unique model slugs/names and sort them
+    const uniqueModels = [...new Set(filteredModels.map(m => m.vehicleModel).filter(Boolean))].sort();
+
+    // Re-add options
+    uniqueModels.forEach(m => {
+      modelFilter.add(new Option(formatTitle(m), m));
+    });
+
+    // Preserve the user's previously selected model if it is still a valid choice
+    if (uniqueModels.includes(currentSelectedModel)) {
+      modelFilter.value = currentSelectedModel;
+    } else {
+      modelFilter.value = ""; // Fallback to "All Models" if it doesn't belong to the new make
+    }
+  };
+
+  /** Populates the initial, static filters (Make, Powertrain, Architecture) */
   const populateFilters = (models) => {
     const getOptions = (key) => [...new Set(models.map(m => m[key]).filter(Boolean))].sort();
-    getOptions('make').forEach(v => makeFilter.add(new Option(formatTitle(v),v)));
-    getOptions('vehicleModel').forEach(v => modelFilter.add(new Option(formatTitle(v),v)));
-    getOptions('powertrain').forEach(v => powertrainFilter.add(new Option(String(v).replace(/\_/g, ' '),v)));
+    
+    // Populate static filters
+    getOptions('make').forEach(v => makeFilter.add(new Option(formatTitle(v), v)));
+    getOptions('powertrain').forEach(v => powertrainFilter.add(new Option(String(v).replace(/_/g, ' '), v)));
     getOptions('architectureTag').forEach(arch => architectureFilter.add(new Option(formatArchitectureTag(arch), arch)));
+
+    // Populate dynamic model filter
+    updateModelOptions(models);
   };
 
   // --- Rendering Functions ---
@@ -556,7 +589,7 @@ const renderArchitectureGroup = (arch, models) => `
         card.querySelector('.feature-sets-container').innerHTML = renderVersionContent(version, activeArch, group);
       }
     }
-    
+
     // Copy button click
     if (e.target.matches('.copy-btn')) {
       const snippet = e.target.nextElementSibling.innerText;
@@ -589,6 +622,13 @@ const renderArchitectureGroup = (arch, models) => `
   [searchInput, makeFilter, modelFilter, powertrainFilter, architectureFilter, yearMinInput, yearMaxInput].forEach(el => 
     el.addEventListener('input', handleSearch)
   );
+
+  // Dynamic dropdown dependency trigger
+  makeFilter.addEventListener('change', () => {
+    updateModelOptions(allModels);
+    handleSearch();
+  });
+
   resultsContainer.addEventListener('change', handleEventDelegation);
   resultsContainer.addEventListener('click', handleEventDelegation);
 
