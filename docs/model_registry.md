@@ -253,22 +253,26 @@ document.addEventListener('DOMContentLoaded', () => {
     return labels[String(value || '').toLowerCase()] || formatTitle(value);
   };
   
-  /** Parses various year formats (number, string, array) into a min/max range. */
-  const parseYearRange = (yearData) => {
-      if (Array.isArray(yearData)) {
-          const years = yearData.map(Number).filter(n => !isNaN(n));
-          return years.length > 0 ? { min: Math.min(...years), max: Math.max(...years) } : null;
+  /** Parses various year formats (number, string, array) into a range and display format. */
+  const parseYears = (yearData) => {
+    if (!yearData) return { min: null, max: null, display: 'N/A' };
+    
+    if (Array.isArray(yearData)) {
+      const years = yearData.map(Number).filter(n => !isNaN(n));
+      if (years.length > 0) {
+        const min = Math.min(...years);
+        const max = Math.max(...years);
+        const display = min === max ? String(min) : `${min}-${max}`;
+        return { min, max, display };
       }
-      if (typeof yearData === 'number') return { min: yearData, max: yearData };
-      if (typeof yearData === 'string') {
-          if (yearData.includes('-')) {
-              const parts = yearData.split('-').map(s => parseInt(s.trim(), 10));
-              if (parts.length === 2 && !parts.some(isNaN)) return { min: parts[0], max: parts[1] };
-          }
-          const parsed = parseInt(yearData, 10);
-          if (!isNaN(parsed)) return { min: parsed, max: parsed };
-      }
-      return null;
+      return { min: null, max: null, display: 'N/A' };
+    }
+    
+    if (typeof yearData === 'number') {
+      return { min: yearData, max: yearData, display: String(yearData) };
+    }
+    
+    return { min: null, max: null, display: 'N/A' };
   };
 
 
@@ -289,15 +293,17 @@ document.addEventListener('DOMContentLoaded', () => {
       architectureTag: model.architecture_tag || 'unknown',
       variantName: formatTitle(id.config_slug || 'Feature Set').replace("RF ", "Random Forest ").replace("NGB ", "NGBoost "),
       downloadUrl: fallbackUrl || model.path, // Switch ordering here when connected to S3 bucket for download link -- Update Fallback URL to something useful
-      yearRange: parseYearRange(id.year),
+      yearRange: parseYears(id.year),
       pySnippet: `import nrel.routee.powertrain as pt\n\nmodel = pt.load_model("${modelIdString}")`
     };
   };
 
-  /** Groups the flat list of models by vehicle, then by version tag. */
+  /** Groups the flat list of models by vehicle, year, then by version tag. */
   const groupModelsByVehicle = (models) => {
     const groups = models.reduce((acc, model) => {
-      const key = `${model.make}|${model.vehicleModel}|${model.powertrain}`.toLowerCase();
+      const yearKey = model.yearRange ? model.yearRange.display : 'unknown';
+      const key = `${model.make}|${model.vehicleModel}|${model.powertrain}|${yearKey}`.toLowerCase();
+      
       if (!acc[key]) {
         acc[key] = { key, make: model.make, vehicle: model.vehicleModel, powertrain: model.powertrain, versions: {} };
       }
@@ -313,13 +319,7 @@ document.addEventListener('DOMContentLoaded', () => {
         .map(([versionNum, featureSets]) => ({
           version: Number(versionNum),
           featureSets,
-          yearRange: featureSets.reduce((range, m) => {
-            if (!m.yearRange) return range;
-            return {
-              min: Math.min(range.min, m.yearRange.min),
-              max: Math.max(range.max, m.yearRange.max)
-            };
-          }, { min: Infinity, max: -Infinity })
+          yearRange: featureSets[0].yearRange
         }))
         .sort((a, b) => b.version - a.version);
       return group;
@@ -439,8 +439,8 @@ const renderArchitectureGroup = (arch, models) => `
   };
   
   const getVersionYearDisplay = (range) => {
-    if (!range || !isFinite(range.min)) return 'N/A';
-    return range.min === range.max ? String(range.min) : `${range.min} - ${range.max}`;
+    if (!range || !range.display) return 'N/A';
+    return range.display;
   };
 
   const renderVehicleCard = (group, groupIndex) => {
