@@ -26,6 +26,13 @@ Use this page to search and download trained RouteE Powertrain models.
     background-color: var(--pst-color-background, #fff);
     color: var(--pst-color-text-base, #333);
   }
+  .filters-grid input:focus, 
+  .filters-grid select:focus,
+  .version-select:focus {
+    border-color: #ff7f0e;
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(255, 127, 14, 0.25);
+  }
   .filters-grid input[type="search"] {
     grid-column: 1 / -1;
   }
@@ -172,7 +179,7 @@ Use this page to search and download trained RouteE Powertrain models.
 <div class="dashboard-container">
 
   <div class="filters-grid">
-    <input type="search" id="search-input" placeholder="Search models, powertrain, specs, features...">
+    <input type="search" id="search-input" placeholder="Search models, powertrain, features...">
     <select id="make-filter"><option value="">All Makes</option></select>
     <select id="model-filter"><option value="">All Models</option></select>
     <select id="powertrain-filter"><option value="">All Powertrains</option></select>
@@ -301,9 +308,9 @@ document.addEventListener('DOMContentLoaded', () => {
   /** Populates filter dropdowns from the available model data. */
   const populateFilters = (models) => {
     const getOptions = (key) => [...new Set(models.map(m => m[key]).filter(Boolean))].sort();
-    getOptions('make').forEach(v => makeFilter.add(new Option(v,v)));
-    getOptions('vehicleModel').forEach(v => modelFilter.add(new Option(v,v)));
-    getOptions('powertrain').forEach(v => powertrainFilter.add(new Option(v,v)));
+    getOptions('make').forEach(v => makeFilter.add(new Option(formatTitle(v),v)));
+    getOptions('vehicleModel').forEach(v => modelFilter.add(new Option(formatTitle(v),v)));
+    getOptions('powertrain').forEach(v => powertrainFilter.add(new Option(String(v).replace(/\_/g, ' '),v)));
     getOptions('architectureTag').forEach(arch => architectureFilter.add(new Option(formatArchitectureTag(arch), arch)));
   };
 
