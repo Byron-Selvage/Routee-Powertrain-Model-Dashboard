@@ -28,7 +28,7 @@ jobs:
 
       # Build the book
       - name: Build the book
-        working-directory: ${{runner.workspace}}/routee-powertrain/docs/
+        working-directory: ${{runner.workspace}}/docs/
         run: |
           python examples/_convert_examples_to_notebooks.py
           jupyter-book build .
