@@ -194,7 +194,6 @@ Use this page to search and download trained RouteE Powertrain models.
 <script>
 document.addEventListener('DOMContentLoaded', () => {
 
-  // const INDEX_URL = '../../../dummy_index.json';
   const INDEX_URL = 'https://raw.githubusercontent.com/Byron-Selvage/Routee-Powertrain-Model-Dashboard/refs/heads/main/index.json';
   let allModels = [];
   let vehicleGroups = [];
