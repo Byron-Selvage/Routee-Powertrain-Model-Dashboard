@@ -174,6 +174,12 @@ Use this page to search and download trained RouteE Powertrain models.
     padding: 40px 20px;
     color: var(--pst-color-text-muted, #666);
   }
+
+  .snippet-box .token-keyword { color: #c586c0; }
+  .snippet-box .token-variable { color: #9cdcfe; }
+  .snippet-box .token-function { color: #dcdcaa; }
+  .snippet-box .token-string { color: #ce9178; }
+  .snippet-box .token-punctuation { color: #d4d4d4; }
 </style>
 
 <div class="dashboard-container">
@@ -222,6 +228,36 @@ document.addEventListener('DOMContentLoaded', () => {
       .split(' ')
       .map(word => word.length <= 3 ? word.toUpperCase() : word.charAt(0).toUpperCase() + word.slice(1))
       .join(' ');
+  };
+
+  /** Applies basic, non-destructive syntax highlighting to a Python snippet. */
+  const highlightPySnippet = (code) => {
+    if (!code) return '';
+
+    // Escape HTML characters first to prevent raw rendering issues
+    let escaped = code
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+
+    // Define regex patterns for Python tokens
+    const tokenRegex = /(".*?")|\b(import|as)\b|\b(load_model)\b|\b(pt|model)\b|([=().,])/g;
+
+    // Replace tokens in a single pass based on which capturing group matched
+    return escaped.replace(tokenRegex, (match, string, keyword, fn, variable, punctuation) => {
+      if (string) {
+        return `<span class="token-string">${string}</span>`;
+      } else if (keyword) {
+        return `<span class="token-keyword">${keyword}</span>`;
+      } else if (fn) {
+        return `<span class="token-function">${fn}</span>`;
+      } else if (variable) {
+        return `<span class="token-variable">${variable}</span>`;
+      } else if (punctuation) {
+        return `<span class="token-punctuation">${punctuation}</span>`;
+      }
+      return match;
+    });
   };
 
   /** Maps architecture keys to human-readable labels. */
@@ -325,7 +361,7 @@ document.addEventListener('DOMContentLoaded', () => {
       </ul>
       <div class="snippet-wrapper">
         <button class="copy-btn">Copy</button>
-        <div class="snippet-box">${model.pySnippet}</div>
+        <div class="snippet-box">${highlightPySnippet(model.pySnippet)}</div>
       </div>
       <a href="${model.downloadUrl}" class="btn-download" target="_blank">Download Model</a>
     </div>`;
