@@ -339,7 +339,7 @@ document.addEventListener('DOMContentLoaded', () => {
     return Object.values(groups).map((group, groupIndex) => {
       group.featureSetsList = Object.values(group.featureSets).map((versions, fsIndex) => {
         versions.sort((a, b) => b.version - a.version);
-        return { fsIndex, versions };
+        return { fsIndex, versions, selectedVersionIndex: 0 };
       });
       return group;
     });
@@ -429,7 +429,7 @@ document.addEventListener('DOMContentLoaded', () => {
       </h2>
       <hr style="border: 0; border-top: 2px solid var(--pst-color-border, #eee); margin-bottom: 16px;">
       <div style="display: grid; gap: 12px;">
-        ${featureSets.map(fs => renderFeatureSetCard(fs, groupIndex, 0)).join('')}
+        ${featureSets.map(fs => renderFeatureSetCard(fs, groupIndex, fs.selectedVersionIndex)).join('')}
       </div>
     </div>`;
 
@@ -579,6 +579,7 @@ document.addEventListener('DOMContentLoaded', () => {
   
   const handleEventDelegation = (e) => {
     if (e.target.matches('.model-version-select')) {
+      if (e.type !== 'change') return; 
       const groupIndex = e.target.dataset.groupIndex;
       const fsIndex = parseInt(e.target.dataset.fsIndex, 10);
       const versionIndex = parseInt(e.target.value, 10);
@@ -587,6 +588,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (group) {
         const fsData = group.featureSetsList.find(fs => fs.fsIndex === fsIndex);
         if (fsData) {
+          fsData.selectedVersionIndex = versionIndex;
           const card = e.target.closest('.feature-set-card');
           card.outerHTML = renderFeatureSetCard(fsData, groupIndex, versionIndex);
         }
