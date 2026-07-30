@@ -270,7 +270,7 @@ document.addEventListener('DOMContentLoaded', () => {
     return labels[String(value || '').toLowerCase()] || formatTitle(value);
   };
   
-  /** Parses various year formats (number, string, array) into a range and display format. */
+  /** Parses various year formats (number, array) into a range (used for searching) and display format (used in the vehicle card titles). */
   const parseYears = (yearData) => {
     if (!yearData) return { min: null, max: null, display: 'N/A' };
     
@@ -294,7 +294,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // --- Data Processing ---
 
-  /** Takes a raw model object pulls out the needed properties. */
+  /** Takes a raw model object and pulls out the needed properties. */
   const processModelData = (model) => {
     const id = model.model_id || {};
     const modelIdString = String(model.path).replace('v2/', '');
@@ -366,7 +366,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   };
 
-  /** Populates the initial, static filters (Make, Powertrain, Architecture) */
+  /** Populates the filters - Make, Powertrain, and Architecture are static, Model populates dynamically based on the value of the makeFilter. */
+  /** It'd be easier if they were all static but it bugged me. */
   const populateFilters = (models) => {
     const getOptions = (key) => [...new Set(models.map(m => m[key]).filter(Boolean))].sort();
     
